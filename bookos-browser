@@ -1,0 +1,66 @@
+#!/usr/bin/bash
+# Lanza Aether Browser con su propio perfil, separado del de Firefox.
+#
+# --name fija el app_id de Wayland: con él el dock asocia la ventana al
+# lanzador bookos-browser.desktop (StartupWMClass) y no al de Firefox. Con el
+# mismo nombre, una segunda llamada abre la URL en la ventana que ya hay.
+# BOOKOS_BROWSER_DIR apunta a un montaje de pruebas (./construir.sh <dir>) y
+# BOOKOS_PERFIL a otro perfil (dev.sh usa perfil-dev).
+# Sin él: la instalación del sistema y, si no hay, la de usuario
+# (instalar.sh --usuario).
+RAIZ=${BOOKOS_BROWSER_DIR:-/usr/local/lib/bookos-browser}
+[ -n "${BOOKOS_BROWSER_DIR:-}" ] || [ -x "$RAIZ/firefox" ] || RAIZ=$HOME/.local/opt/bookos-browser
+
+# Tras un «dnf upgrade» el firefox copiado en el montaje ya no casa con
+# libxul.so (ni omni.ja con el del sistema) y no arranca. La copia es
+# idéntica byte a byte al del sistema mientras la versión sea la misma, así
+# que cmp basta como comprobación (medio mega, imperceptible). Con otra
+# instancia viva no se remonta: se le cambiaría el omni.ja bajo los pies.
+if ! cmp -s /usr/lib64/firefox/firefox "$RAIZ/firefox" && ! pgrep -f "$RAIZ/firefox" >/dev/null; then
+  fuentes=$(cat "$RAIZ/origen" 2>/dev/null || true)
+  if [ -w "$RAIZ" ] && [ -x "$fuentes/construir.sh" ]; then
+    echo "Firefox se ha actualizado: remontando Aether Browser..." >&2
+    "$fuentes/construir.sh" "$RAIZ" >/dev/null
+  else
+    msg="Firefox se ha actualizado y Aether Browser no. Ejecuta instalar.sh de nuevo."
+    echo "$msg" >&2
+    notify-send "Aether Browser" "$msg" 2>/dev/null || true
+    exit 1
+  fi
+fi
+PERFIL=${BOOKOS_PERFIL:-${XDG_DATA_HOME:-$HOME/.local/share}/bookos-browser/perfil}
+mkdir -p "$PERFIL/extensions"
+
+# El idioma: Fedora no compila los idiomas en Firefox, los trae como
+# extensiones en langpacks/ (paquete firefox-langpacks) y su /usr/bin/firefox
+# enlaza la del sistema en cada arranque. Aquí se hace lo mismo, pero dentro
+# de nuestro perfil. La marca de Aether se le superpone desde bookos.uc.js: el
+# paquete no se toca porque, modificado, pierde la firma y Firefox lo borra.
+LOCALE=${LC_ALL:-${LC_MESSAGES:-$LANG}}
+LOCALE=${LOCALE%%.*}
+rm -f "$PERFIL"/extensions/langpack-*.xpi
+for l in "${LOCALE/_/-}" "${LOCALE%%_*}"; do
+  xpi=/usr/lib64/firefox/langpacks/langpack-$l@firefox.mozilla.org.xpi
+  if [ -e "$xpi" ]; then
+    # El nombre del enlace tiene que ser el id de la extensión, y «es» es un
+    # enlace a «es-ES»: se usa el nombre del fichero real.
+    xpi=$(realpath "$xpi")
+    ln -s "$xpi" "$PERFIL/extensions/$(basename "$xpi")"
+    break
+  fi
+done
+
+export MOZ_APP_REMOTINGNAME=${MOZ_APP_REMOTINGNAME:-bookos-browser}
+# Sin el informador de fallos: manda los informes a Mozilla y, al cerrar el
+# navegador con una señal, relanzaba Firefox sin argumentos, o sea con el
+# perfil normal del usuario y no con el nuestro.
+export MOZ_CRASHREPORTER_DISABLE=1
+# Firefox guarda en el perfil una caché de los scripts y no mira si cambiaron:
+# tras actualizar Aether Browser seguiría corriendo los viejos. Se vacía solo
+# cuando la versión instalada no es la que vio este perfil la última vez.
+purgar=()
+if ! cmp -s "$RAIZ/bookos-version" "$PERFIL/.bookos-version"; then
+  purgar=(-purgecaches)
+  cp "$RAIZ/bookos-version" "$PERFIL/.bookos-version"
+fi
+exec "$RAIZ/firefox" --name bookos-browser --class bookos-browser --profile "$PERFIL" "${purgar[@]}" "$@"

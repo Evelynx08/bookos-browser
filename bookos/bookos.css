@@ -1,0 +1,964 @@
+/* Piel de Aether Browser sobre la interfaz de Firefox.
+ *
+ * Se carga como hoja de autor en browser.xhtml desde bookos.cfg; la paleta de
+ * BookOS Settings entra después (bookos.uc.js) y pisa los tokens de abajo.
+ * Las variables de Firefox llevan !important porque las suyas se declaran
+ * con selectores más específicos (:root[lwtheme], :root:-moz-window-inactive…)
+ * y ganarían a un :root suelto. */
+
+/* ── Tokens: fallback del HIG §2.1 ──────────────────────────────────────── */
+:root {
+  --bg: #f2f2f7; --card: #ffffff; --sbg: rgba(0,0,0,.06);
+  --tx: #000000; --tx2: #8e8e93;
+  --div: rgba(0,0,0,.08); --brd: rgba(0,0,0,.10);
+  --hov: rgba(0,0,0,.04); --act: rgba(0,0,0,.08);
+  --blue: #007aff; --toff: #e0e0e0;
+  --accent-container: #d8e7ff; --on-accent-container: #001d3d;
+  --green: #34c759; --red: #ff3b30;
+  --sombra-reposo: 0 1px 3px rgba(0,0,0,.05);
+  /* Lo que flota sobre la página: sombra de toast (HIG §2.5). */
+  --sombra-flotante: 0 4px 20px rgba(0,0,0,.15);
+  --curva: cubic-bezier(.4,0,.2,1);
+  --alto-control: 38px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --card: #1c1c1e; --sbg: rgba(255,255,255,.08);
+    --tx: #ffffff; --tx2: #8e8e93;
+    --div: rgba(255,255,255,.08); --brd: rgba(255,255,255,.06);
+    --hov: rgba(255,255,255,.06); --act: rgba(255,255,255,.10);
+    --blue: #0a84ff; --toff: #48484a;
+    --accent-container: #0a3a73; --on-accent-container: #d8e7ff;
+    --green: #30d158; --red: #ff453a;
+    /* HIG §2.5: ninguna sombra en tema oscuro. */
+    --sombra-reposo: none;
+    /* Sin sombras en oscuro: un borde sutil separa la píldora de la página. */
+    --sombra-flotante: 0 0 0 1px var(--brd);
+  }
+}
+
+/* ── Tokens de Firefox apuntando a los nuestros ─────────────────────────── */
+:root {
+  /* El marco de la ventana es --toff: el neutro tono 86/30 que Settings ya
+   * deriva del fondo. Es el gris del diseño (#D9D9D9) y queda un escalón por
+   * debajo de --bg, que es el lienzo del contenido. */
+  --toolbox-background-color: var(--toff) !important;
+  --toolbox-background-color-inactive: var(--toff) !important;
+  --toolbox-text-color: var(--tx) !important;
+  --toolbox-text-color-inactive: var(--tx2) !important;
+  --toolbar-background-color: var(--bg) !important;
+  --toolbar-bgcolor: var(--bg) !important;
+  --toolbar-text-color: var(--tx) !important;
+  --toolbar-color: var(--tx) !important;
+  --toolbar-field-background-color: var(--accent-container) !important;
+  --toolbar-field-background-color-focus: var(--accent-container) !important;
+  --toolbar-field-text-color: var(--on-accent-container) !important;
+  --toolbar-field-text-color-focus: var(--on-accent-container) !important;
+  --toolbar-field-border-color: transparent !important;
+  --toolbar-field-border-color-focus: var(--blue) !important;
+  --toolbarbutton-border-radius: 12px !important;
+  --toolbarbutton-hover-background: var(--hov) !important;
+  --toolbarbutton-active-background: var(--act) !important;
+  --tab-border-radius: 12px !important;
+  --tab-selected-bgcolor: var(--card) !important;
+  --tab-selected-textcolor: var(--tx) !important;
+  --tab-min-height: var(--alto-control) !important;
+  --tabs-navbar-separator-style: none !important;
+  --chrome-content-separator-color: transparent !important;
+  --urlbar-container-height: calc(var(--alto-control) + 8px) !important;
+  --urlbar-min-height: var(--alto-control) !important;
+  --urlbar-height: var(--alto-control) !important;
+  --focus-outline-color: var(--blue) !important;
+  font: menu;
+}
+
+/* ── Fila 1: título de la pestaña activa y botones de ventana ───────────── */
+#TabsToolbar {
+  position: relative;
+  /* HIG §5: la barra de título mide 36px. */
+  padding-top: 36px !important;
+  padding-bottom: 8px !important;
+  padding-inline: 8px !important;
+}
+#TabsToolbar::before {
+  content: attr(bookos-titulo);
+  position: absolute;
+  inset: 0 120px auto;
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--toolbox-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+#TabsToolbar .titlebar-spacer { display: none !important; }
+
+#TabsToolbar .titlebar-buttonbox-container {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 6px;
+  height: 36px;
+  align-items: center;
+}
+/* Como en la barra que pinta el compositor: sin fondo en reposo, glifo
+ * apagado, y solo se encienden bajo el puntero; cerrar en rojo. */
+.titlebar-button {
+  appearance: none !important;
+  width: 28px !important;
+  height: 28px !important;
+  padding: 6px !important;
+  margin-inline: 2px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  -moz-context-properties: fill;
+  fill: var(--tx2);
+  opacity: .8;
+  transition: background-color 120ms var(--curva), opacity 120ms var(--curva);
+}
+:root:-moz-window-inactive .titlebar-button { opacity: .5; }
+/* Firefox pinta el glifo del tema GTK como fondo del icono. */
+.titlebar-button > .toolbarbutton-icon {
+  width: 16px;
+  height: 16px;
+  background-image: none !important;
+  /* Firefox solo le pasa stroke a este icono (los glifos simbólicos de GTK). */
+  -moz-context-properties: fill !important;
+  fill: inherit !important;
+}
+.titlebar-min { list-style-image: url("iconos/minus.svg") !important; }
+.titlebar-max, .titlebar-restore { list-style-image: url("iconos/stop.svg") !important; }
+.titlebar-close { list-style-image: url("iconos/x-mark.svg") !important; }
+.titlebar-button:hover { background: var(--hov) !important; fill: var(--tx); opacity: 1; }
+.titlebar-close:hover { background: var(--red) !important; fill: #fff; }
+
+/* ── Fila 2: pestañas ───────────────────────────────────────────────────── */
+#TabsToolbar .toolbarbutton-1 {
+  --toolbarbutton-inner-padding: 11px;
+  margin: 0 !important;
+}
+/* Vista de pestañas y nueva pestaña son un solo grupo (diseño de Figma):
+ * sin el relleno lateral del botón quedaba un hueco de 4px entre las dos
+ * mitades (medido: 56..94 y 98..136). */
+#TabsToolbar-customization-target > :is(#alltabs-button, #bookos-pestanas, #new-tab-button) {
+  padding-inline: 0 !important;
+}
+/* Cada botón suelto es una píldora --card; los vecinos se funden en un
+ * grupo (vista de pestañas + nueva), como en el diseño. */
+#TabsToolbar-customization-target > .toolbarbutton-1 > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  background: var(--card) !important;
+  box-shadow: var(--sombra-reposo);
+}
+#TabsToolbar-customization-target > .toolbarbutton-1:hover > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  background: color-mix(in srgb, var(--card), var(--tx) 5%) !important;
+}
+#TabsToolbar-customization-target > #sidebar-button > .toolbarbutton-icon { border-radius: 12px !important; }
+#TabsToolbar-customization-target > #alltabs-button > .toolbarbutton-badge-stack,
+#TabsToolbar-customization-target > #bookos-pestanas > .toolbarbutton-icon { border-radius: 12px 0 0 12px !important; }
+#TabsToolbar-customization-target > #new-tab-button > .toolbarbutton-icon { border-radius: 0 12px 12px 0 !important; }
+#sidebar-button { margin-inline-end: 8px !important; }
+#new-tab-button { margin-inline-end: 4px !important; }
+#tabbrowser-tabs { padding-inline-start: 0 !important; }
+#tabbrowser-tabs::before { display: none !important; }
+/* La barra de menús (Alt) trae su propia caja de botones de ventana, y con
+ * las pestañas en la barra de título se pintaba también: había dos juegos de
+ * minimizar/maximizar/cerrar desplazados 6px, uno sobre otro. */
+#toolbar-menubar .titlebar-buttonbox-container { display: none !important; }
+
+/* Firefox, con la barra lateral nueva, vuelve a meter este botón en la barra
+ * de navegación si falta en todas partes; su sitio lo ocupa el menú
+ * principal y la barra lateral se abre con Ctrl+B. */
+#sidebar-button { display: none !important; }
+#alltabs-button, #bookos-pestanas { list-style-image: url("iconos/square-2-stack.svg") !important; }
+#new-tab-button { list-style-image: url("iconos/plus.svg") !important; }
+#tabs-newtab-button { display: none !important; }
+
+.tabbrowser-tab {
+  padding-inline: 4px !important;
+  padding-block: 0 !important;
+}
+/* Las pestañas reparten la fila a partes iguales, sin el tope de 225px. */
+.tabbrowser-tab[fadein]:not([pinned]) { max-width: none !important; }
+.tab-background {
+  /* Mismo alto y misma línea que los botones de la fila (y=40..78): sin
+   * margen la píldora medía 46px y sobresalía 4px por arriba y por abajo. */
+  margin-block: 4px !important;
+  border-radius: 12px !important;
+  background: var(--act) !important;
+  box-shadow: none !important;
+  transition: background-color 120ms var(--curva);
+}
+.tabbrowser-tab:hover > .tab-stack > .tab-background:not([selected]) {
+  background: color-mix(in srgb, var(--act), var(--tx) 6%) !important;
+}
+.tab-background[selected] {
+  background: var(--card) !important;
+  box-shadow: var(--sombra-reposo) !important;
+}
+/* Título centrado como en el diseño. No se puede encoger el contenedor de
+ * la etiqueta hasta su contenido (Firefox le pone contain: inline-size, su
+ * ancho propio es 0), así que ocupa el hueco y el texto se centra dentro; el
+ * favicon (22px) y el botón de cerrar (18px) a los lados casi se compensan. */
+.tab-content { padding-inline: 12px !important; }
+/* Sin favicon, como en el diseño: suelto a la izquierda de un título
+ * centrado quedaba descolgado. Se quedan el indicador de carga y los de
+ * sonido, que son estado, y el favicon de las fijadas, que no tienen título. */
+.tabbrowser-tab:not([pinned]) .tab-icon-image { display: none !important; }
+/* align-self en la etiqueta y no align-items en el contenedor: este lleva
+ * align="start" en el marcado, y xul.css lo traduce con una regla de agente
+ * de usuario que gana a cualquier hoja de autor. */
+.tab-label { font-size: 14px; font-weight: 500; align-self: center; }
+.tab-close-button { border-radius: 8px !important; }
+.tabbrowser-tab:not(:hover, :focus-within) .tab-close-button { visibility: hidden; }
+.private-browsing-indicator-with-label, .content-analysis-indicator { display: none !important; }
+
+/* ── Barra de navegación ────────────────────────────────────────────────── */
+/* Flota sobre la página, como en el diseño: sin franja propia, solo las
+ * píldoras. Se saca del flujo de la caja de herramientas para que el
+ * contenido empiece justo bajo las pestañas, y los huecos entre píldoras
+ * dejan pasar el ratón a la página. */
+#navigator-toolbox { position: relative; z-index: 3; }
+#nav-bar {
+  position: absolute !important;
+  top: 100%;
+  inset-inline: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 16px !important;
+  /* Alto fijo igual a la franja que se reserva (--alto-barra): con padding
+   * y la caja de la urlbar (46px, no 38) medía 65px y sus 7px de más
+   * tapaban el borde de arriba de la web. */
+  height: var(--alto-barra) !important;
+  box-sizing: border-box;
+  align-items: center;
+  pointer-events: none;
+}
+#nav-bar-customization-target > *, #nav-bar > :not(#nav-bar-customization-target) {
+  pointer-events: auto;
+}
+#nav-bar .toolbarbutton-1 { margin: 0 !important; }
+#nav-bar .toolbarbutton-1:not(#back-button, #forward-button) { margin-inline-start: 6px !important; }
+#nav-bar .toolbarbutton-1:not(#back-button, #forward-button) > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  background: var(--card) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--sombra-flotante);
+}
+#nav-bar .toolbarbutton-1:not(#back-button, #forward-button, [disabled]):hover > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  background: color-mix(in srgb, var(--card), var(--tx) 5%) !important;
+}
+#nav-bar .toolbarbutton-1 > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  width: 40px !important;
+  height: var(--alto-control) !important;
+  padding: 11px !important;
+}
+
+/* Atrás y adelante: un único grupo --card con un separador corto. */
+:is(#back-button, #forward-button) > .toolbarbutton-icon {
+  background: var(--card) !important;
+  box-shadow: var(--sombra-flotante);
+}
+#back-button > .toolbarbutton-icon { border-radius: 12px 0 0 12px !important; }
+#forward-button > .toolbarbutton-icon { border-radius: 0 12px 12px 0 !important; }
+#back-button { position: relative; }
+#back-button::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 0;
+  top: 11px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--div);
+}
+#back-button { list-style-image: url("iconos/chevron-left.svg") !important; }
+#forward-button { list-style-image: url("iconos/chevron-right.svg") !important; }
+:is(#back-button, #forward-button):not([disabled]):hover > .toolbarbutton-icon {
+  background: color-mix(in srgb, var(--card), var(--tx) 5%) !important;
+}
+
+#bookos-compartir > .toolbarbutton-icon { margin-inline-end: 8px; }
+#bookos-compartir { list-style-image: url("iconos/arrow-up-on-square.svg"); }
+#bookos-enfoque { list-style-image: url("iconos/arrows-pointing-out.svg"); }
+:root[inFullscreen] #bookos-enfoque { list-style-image: url("iconos/arrows-pointing-in.svg"); }
+
+/* Los iconos propios son trazos de Heroicons, pero el SVG toma el color del
+ * trazo de context-fill: Firefox ya pasa `fill` a todos sus iconos de barra
+ * (-moz-context-properties: fill), y con context-stroke había que repetir esa
+ * propiedad en cada <image>, donde la suya pisaba a la heredada. */
+
+/* ── Barra de direcciones ───────────────────────────────────────────────── */
+#urlbar-container {
+  /* Firefox mide la barra y se guarda las alturas como estilo en línea de
+   * este nodo: tras pasar por la pestaña nueva (66px) se quedaban puestas.
+   * Repetirlas aquí con !important gana al estilo en línea. */
+  --urlbar-container-height: calc(var(--alto-control) + 8px) !important;
+  --urlbar-height: var(--alto-control) !important;
+  max-width: 640px !important;
+  margin-inline: 0 !important;
+  padding-block: 0 !important;
+}
+#urlbar > .urlbar-background {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: var(--sombra-flotante) !important;
+  background: var(--accent-container) !important;
+}
+#urlbar[focused] > .urlbar-background {
+  outline: 2px solid var(--blue) !important;
+  outline-offset: -2px !important;
+}
+#urlbar[open] > .urlbar-background {
+  background: var(--card) !important;
+  outline: none !important;
+  box-shadow: 0 6px 22px rgba(0,0,0,.18) !important;
+}
+#urlbar-input { font-size: 14px !important; font-weight: 500; }
+
+/* El escudo: Firefox 156 ya lo pinta (#trust-icon, el del panel de
+ * confianza) con la misma forma que el diseño; solo se tiñe de verde
+ * mientras la conexión es segura y la protección está activa. El verde es
+ * estado, no acción (HIG §2.1). */
+#trust-icon-container:is(.secure, .scanning):not(.insecure, .breached) #trust-icon {
+  fill: var(--green) !important;
+  fill-opacity: 1 !important;
+}
+/* Ajustes del sitio (el panel de identidad y permisos). Si la conexión no es
+ * segura se deja el aviso de Firefox: eso no es un adorno que unificar. */
+/* En páginas seguras Firefox 156 esconde el icono entero (display: none). */
+#urlbar[pageproxystate="valid"] #identity-icon-box { display: flex !important; }
+#identity-box:not(.notSecure, .weakCipher, .mixedActiveContent, .certErrorPage) #identity-icon {
+  list-style-image: url("iconos/adjustments-horizontal.svg") !important;
+}
+#translations-button-icon { list-style-image: url("iconos/language.svg") !important; }
+/* :where para no ganar al verde del escudo, que también es .urlbar-icon. */
+:where(#urlbar) :where(.urlbar-icon, #identity-icon, #translations-button-icon),
+:where(#star-button-box) .urlbar-icon {
+  fill: var(--on-accent-container) !important;
+  fill-opacity: 1 !important;
+}
+
+/* Recargar va dentro de la barra, al final (bookos.uc.js pone #bookos-recargar
+ * en page-action-buttons). El de la barra de herramientas no se puede
+ * superponer: la urlbar es un popover y se pinta en la capa superior. */
+#stop-reload-button { display: none !important; }
+#bookos-recargar { list-style-image: url("iconos/arrow-path.svg"); }
+#bookos-recargar[parar] { list-style-image: url("iconos/x-mark.svg"); }
+
+/* La estrella, fuera y en su propia píldora. */
+#star-button-box {
+  margin-inline-start: 6px !important;
+  align-self: center;
+  width: var(--alto-control) !important;
+  height: var(--alto-control) !important;
+  border-radius: 12px !important;
+  background: var(--accent-container) !important;
+  box-shadow: var(--sombra-flotante);
+  justify-content: center;
+}
+#star-button-box:hover { background: color-mix(in srgb, var(--accent-container), var(--tx) 6%) !important; }
+#star-button:not([starred]) { list-style-image: url("iconos/star.svg") !important; }
+#star-button {
+  width: 18px !important;
+  height: 18px !important;
+}
+#star-button[starred] { fill: var(--on-accent-container) !important; }
+
+/* ── Pestaña nueva: solo la barra, grande y en el centro ────────────────── */
+:root[bookos-nueva] #nav-bar-customization-target > :not(#urlbar-container),
+:root[bookos-nueva] #nav-bar > :not(#nav-bar-customization-target) {
+  visibility: hidden;
+}
+:root[bookos-nueva] #nav-bar {
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+:root[bookos-nueva] #urlbar-container {
+  /* Centrado con márgenes automáticos: un transform aquí lo ignoraba el
+   * posicionamiento de la barra, que calcula su caja desde el contenedor. */
+  position: fixed;
+  top: calc(52% - 33px);
+  left: 0;
+  right: 0;
+  margin-inline: auto !important;
+  width: min(640px, 100vw - 64px) !important;
+  max-width: none !important;
+  --urlbar-height: 66px !important;
+  --urlbar-container-height: 66px !important;
+  z-index: 2;
+}
+:root[bookos-nueva] #urlbar:not([open]) > .urlbar-background { border-radius: 999px !important; }
+:root[bookos-nueva] #urlbar:not([open]) .urlbar-input-container {
+  padding-inline: 28px !important;
+}
+:root[bookos-nueva] #urlbar-input { font-size: 18px !important; font-weight: 600; }
+:root[bookos-nueva] #urlbar :is(#identity-box, #tracking-protection-icon-container, #page-action-buttons, #urlbar-searchmode-switcher) {
+  display: none !important;
+}
+/* El contenido de about:newtab está vacío (browser.newtabpage.enabled=false):
+ * se esconde para que se vea el lienzo --bg de la propia ventana, que ya
+ * lleva la paleta. */
+:root[bookos-nueva] #tabbrowser-tabpanels { visibility: hidden; }
+#browser, #tabbrowser-tabpanels { background: var(--bg) !important; }
+
+/* ── Modo enfoque (pantalla completa) ───────────────────────────────────── */
+/* Firefox ya esconde la barra y la deja asomar al acercar el puntero arriba;
+ * aquí solo se le da la curva de BookOS. Sin bordes ni redondeo: la ventana
+ * ocupa la pantalla entera y el compositor oculta panel y dock. */
+:root[inFullscreen] #navigator-toolbox[fullscreenShouldAnimate] {
+  transition-timing-function: cubic-bezier(.25,.46,.45,.94) !important;
+  transition-duration: 280ms !important;
+}
+:root[inFullscreen] #navigator-toolbox { box-shadow: 0 6px 22px rgba(0,0,0,.18); }
+
+/* ── Panel de estado (enlace bajo el puntero, «Cargando…») ──────────────── */
+#statuspanel-label {
+  background: var(--card) !important;
+  color: var(--tx2) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  margin: 0 0 8px 8px !important;
+  padding: 4px 10px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15) !important;
+  font-size: 12px;
+}
+
+/* Al estar fuera del flujo, la barra no sube con la caja de herramientas
+ * cuando el modo enfoque la esconde: se oculta con ella. */
+:root[fullscreenNavToolboxHidden] #nav-bar { visibility: hidden; }
+
+/* Firefox apaga un botón desactivado con opacity: .5 en el botón entero, y
+ * la píldora va dentro: sobre la página se volvía translúcida. Se apaga
+ * solo el glifo. */
+#nav-bar .toolbarbutton-1[disabled] { opacity: 1 !important; }
+#nav-bar .toolbarbutton-1[disabled] > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  fill: color-mix(in srgb, currentColor 35%, transparent) !important;
+}
+
+/* ── La barra se esconde al bajar ───────────────────────────────────────── */
+/* bookos-barra: «visible» u «oculta» (BookosScrollChild). */
+:root {
+  /* Alto de la fila: control de 38px más 10px de aire arriba y abajo. */
+  --alto-barra: calc(var(--alto-control) + 20px);
+}
+/* Visible, la barra tiene su franja y la web empieza debajo: nunca tapa la
+ * página ni su menú de navegación. La franja no se anima (margin es layout y
+ * la web entera se volvería a maquetar en cada fotograma); cambia de golpe y
+ * BookosScrollChild devuelve ese alto en scroll en el mismo instante, así que
+ * la web no se mueve. Lo único que se ve moverse es la barra. */
+:root:not([bookos-barra="oculta"], [bookos-nueva], [inFullscreen]) #tabbrowser-tabpanels {
+  margin-top: var(--alto-barra);
+}
+/* #urlbar aparte: es un popover y se pinta en la capa superior, así que no
+ * hereda la opacidad ni el desplazamiento de #nav-bar. */
+#nav-bar, #urlbar {
+  transition:
+    transform 280ms cubic-bezier(.25,.46,.45,.94),
+    opacity 220ms cubic-bezier(.25,.46,.45,.94);
+}
+/* Se va hacia arriba a la vez que se desvanece, por detrás de las pestañas:
+ * orienta sobre adónde ha ido y por dónde volverá.
+ * Sin visibility: hidden a propósito: un elemento invisible no puede
+ * recibir el foco, y Ctrl+L (o Tab) tiene que poder entrar en la barra
+ * escondida; al tener el foco, :focus-within la vuelve a mostrar. */
+:root[bookos-barra="oculta"] #nav-bar:not(:focus-within),
+:root[bookos-barra="oculta"] #nav-bar:not(:focus-within) #urlbar {
+  transform: translateY(-16px);
+  opacity: 0;
+}
+:root[bookos-barra="oculta"] #nav-bar:not(:focus-within) * {
+  pointer-events: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #nav-bar, #urlbar { transition: none !important; }
+}
+
+/* ── Fila del título: enfoque, extensiones y menú ───────────────────────── */
+/* Mismo trato que los botones de ventana del compositor: sin fondo en reposo
+ * y glifo apagado; justo a la izquierda de minimizar. */
+#bookos-acciones {
+  position: absolute;
+  top: 0;
+  /* Hueco de los tres botones de ventana (28px + 4px de margen cada uno) más
+   * el margen derecho de la caja que los contiene. */
+  inset-inline-end: calc(3 * 32px + 6px + 8px);
+  height: 36px;
+  align-items: center;
+  gap: 2px;
+}
+#bookos-acciones > .toolbarbutton-1 {
+  margin: 0 !important;
+  padding: 0 !important;
+  --toolbarbutton-inner-padding: 6px;
+  fill: var(--tx2);
+}
+#bookos-acciones > .toolbarbutton-1 > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 6px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  transition: background-color 120ms var(--curva);
+}
+#bookos-acciones > .toolbarbutton-1:hover > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack),
+#bookos-acciones > .toolbarbutton-1[open] > :is(.toolbarbutton-icon, .toolbarbutton-badge-stack) {
+  background: var(--hov) !important;
+  fill: var(--tx);
+}
+/* El menú principal, en la fila de pestañas: misma píldora que sus vecinos. */
+/* Medido: los botones de la fila ocupan y=40..78 (38px de alto, 38 de
+ * ancho) y este quedaba en 44..82 y 40 de ancho, porque no lleva el margen
+ * inferior de los toolbarbutton de la fila. */
+#PanelUI-button { margin-inline-end: 8px !important; margin-bottom: 4px !important; align-items: center; }
+#PanelUI-menu-button {
+  list-style-image: url("iconos/view-columns.svg") !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  fill: var(--tx);
+}
+#PanelUI-menu-button > .toolbarbutton-badge-stack {
+  width: 38px !important;
+  height: var(--alto-control) !important;
+  padding: 11px !important;
+  border-radius: 12px !important;
+  background: var(--card) !important;
+  box-shadow: var(--sombra-reposo);
+  transition: background-color 120ms var(--curva);
+}
+#PanelUI-menu-button:is(:hover, [open]) > .toolbarbutton-badge-stack {
+  background: color-mix(in srgb, var(--card), var(--tx) 5%) !important;
+}
+#unified-extensions-button { list-style-image: url("iconos/puzzle-piece.svg") !important; }
+/* El título no debe pasar por debajo de estos botones. */
+#TabsToolbar::before { inset-inline: 220px !important; }
+
+/* ── Barra de navegación centrada ───────────────────────────────────────── */
+/* Los muelles de los lados reparten el sobrante a partes iguales, y un hueco
+ * al final del mismo ancho que atrás/adelante equilibra ese grupo: así la
+ * barra de direcciones queda en el centro de la ventana. 94px es lo que mide
+ * el grupo (50 + 44, medido con getBoundingClientRect). Los muelles de
+ * Firefox llevan un tope de ancho (112px) que dejaba el sobrante a la derecha. */
+#nav-bar toolbarspring { max-width: none !important; }
+#nav-bar-customization-target::after {
+  content: "";
+  flex: none;
+  width: 94px;
+}
+
+/* ── Menús, paneles y desplegables ──────────────────────────────────────── */
+/* Tokens del sistema de diseño de Firefox apuntando a los de BookOS: con
+ * esto se tiñen de golpe botones, campos y casillas de todos sus paneles. */
+:root, menupopup, panel {
+  --color-accent-primary: var(--blue) !important;
+  --color-accent-primary-hover: color-mix(in srgb, var(--blue), var(--tx) 12%) !important;
+  --color-accent-primary-active: color-mix(in srgb, var(--blue), var(--tx) 22%) !important;
+  --button-background-color-primary: var(--blue) !important;
+  --button-background-color-primary-hover: color-mix(in srgb, var(--blue), var(--tx) 12%) !important;
+  --button-background-color-primary-active: color-mix(in srgb, var(--blue), var(--tx) 22%) !important;
+  --button-text-color-primary: var(--on-accent, #fff) !important;
+  --button-background-color: var(--hov) !important;
+  --button-background-color-hover: var(--act) !important;
+  --button-background-color-active: color-mix(in srgb, var(--act), var(--tx) 8%) !important;
+  --button-border-radius: 12px !important;
+  --text-color: var(--tx) !important;
+  --text-color-deemphasized: var(--tx2) !important;
+  --background-color-box: var(--card) !important;
+  --border-color: var(--brd) !important;
+  --border-color-card: var(--brd) !important;
+}
+menupopup, panel {
+  --panel-background-color: var(--card) !important;
+  --panel-text-color: var(--tx) !important;
+  --panel-border-color: var(--brd) !important;
+  /* HIG §2.3: 18px el popover, 13px los elementos de dentro. */
+  --panel-border-radius: 18px !important;
+  --panel-box-shadow: 0 6px 22px rgba(0,0,0,.18) !important;
+  --panel-padding-block: 6px !important;
+  --panel-separator-color: var(--div) !important;
+  --panel-menuitem-border-radius: 13px !important;
+  --panel-menuitem-padding: 9px 12px !important;
+  --panel-menuitem-margin: 0 6px !important;
+  --menuitem-border-radius: 13px !important;
+  --menuitem-padding: 8px 12px !important;
+  --menuitem-margin: 0 6px !important;
+  font-size: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  menupopup, panel { --panel-box-shadow: 0 0 0 1px var(--brd) !important; }
+}
+menupopup :is(menuitem, menu)[_moz-menuactive]:not([disabled]) {
+  background-color: var(--hov) !important;
+  color: var(--tx) !important;
+}
+menupopup :is(menuitem, menu)[_moz-menuactive]:not([disabled]):active {
+  background-color: var(--act) !important;
+}
+menupopup menuseparator { margin-inline: 12px !important; }
+menupopup menuseparator::before { border-color: var(--div) !important; }
+.subviewbutton, menupopup :is(menuitem, menu) { font-size: 14px !important; }
+.subviewbutton:not([disabled]):hover { background-color: var(--hov) !important; }
+.subviewbutton:not([disabled]):hover:active,
+.subviewbutton[open] { background-color: var(--act) !important; }
+toolbarseparator { border-color: var(--div) !important; }
+
+/* Las entradas del menú que no hacen nada aquí: cuenta de Firefox (las
+ * políticas la desactivan), IA, perfiles múltiples y recomendaciones. */
+#appMenu-fxa-status2, #appMenu-fxa-separator, #appMenu-fxa-sign-in-promo,
+#appMenu-new-ai-window-button, #appMenu-chats-history-button,
+#appMenu-profiles-button, #appMenu-create-profile-button,
+#appMenu-referrals-button, #appMenu-referrals-separator,
+#appMenu-menu-message {
+  display: none !important;
+}
+
+/* ── Resultados de la barra de direcciones ──────────────────────────────── */
+#urlbar {
+  --urlbarview-background-color-hover: var(--hov) !important;
+  /* Fila seleccionada: acento al 10%, nunca sólido (HIG §2.1). */
+  --urlbarview-background-color-selected: color-mix(in srgb, var(--blue) 10%, transparent) !important;
+  --urlbarview-text-color-selected: var(--tx) !important;
+  --urlbarview-text-color-secondary: var(--tx2) !important;
+  --urlbarview-separator-color: var(--div) !important;
+  --urlbarview-border-radius: 18px !important;
+}
+.urlbarView-row-inner { border-radius: 13px !important; }
+/* La URL de cada resultado iba en el azul de enlace de Firefox: aquí es un
+ * dato secundario, no una acción (HIG §2.1: el acento solo en lo pulsable). */
+#urlbar { --link-color: var(--tx2) !important; }
+.urlbarView-results { padding-inline: 6px !important; }
+.urlbarView-row:is([selected], :hover) .urlbarView-url { color: var(--tx2) !important; }
+.urlbarView-title { font-weight: 500; }
+/* «Firefox Suggest» como título de grupo: es un texto fijo, no la marca, y no
+ * lo cambia brand.ftl. Fuera el título; los resultados se quedan. */
+.urlbarView-row[label*="Firefox"]::before { display: none !important; }
+.urlbarView-row[label*="Firefox"] { margin-block-start: 0 !important; }
+/* «Cambiar a la pestaña» y demás acciones: chip, no un botón con borde. */
+.urlbarView-action {
+  border: none !important;
+  border-radius: 6px !important;
+  background: var(--hov) !important;
+  color: var(--tx2) !important;
+}
+/* Abierta, la barra es una tarjeta de popover (HIG §2.3: 18px), también en
+ * la página de inicio, donde cerrada es una píldora. */
+#urlbar[open] > .urlbar-background { border-radius: 18px !important; }
+:root[bookos-nueva] #urlbar[open] > .urlbar-background { border-radius: 26px !important; }
+
+/* ── Vista de pestañas (Tab overview) ───────────────────────────────────── */
+#bookos-vista-pestanas {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  overflow-y: auto;
+  background: var(--bg);
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(.25,.46,.45,.94);
+}
+#bookos-vista-pestanas[abierta] { opacity: 1; }
+/* La urlbar va en la capa superior (popover) y se pintaba encima de la vista. */
+:root[bookos-vista] :is(#nav-bar, #urlbar) { visibility: hidden; }
+.bookos-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 260px);
+  justify-content: center;
+  gap: 24px;
+  padding: 32px;
+  /* Las tarjetas llegan desde un poco más grandes, como si la página se
+   * alejara hasta su sitio en la cuadrícula. */
+  transform: scale(1.04);
+  transition: transform 280ms cubic-bezier(.25,.46,.45,.94);
+}
+#bookos-vista-pestanas[abierta] .bookos-rejilla { transform: none; }
+.bookos-tarjeta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--tx);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.bookos-miniatura {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 260px;
+  height: 170px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--sombra-flotante);
+  outline: 3px solid transparent;
+  outline-offset: 2px;
+  transition: transform 120ms var(--curva), outline-color 120ms var(--curva);
+}
+.bookos-miniatura > img { width: 48px; height: 48px; }
+.bookos-miniatura > canvas { display: none; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.bookos-miniatura[con-miniatura] > img { display: none; }
+.bookos-miniatura[con-miniatura] > canvas { display: block; }
+.bookos-tarjeta:hover .bookos-miniatura { transform: scale(1.02); }
+.bookos-tarjeta[seleccionada] .bookos-miniatura,
+.bookos-tarjeta:focus-visible .bookos-miniatura { outline-color: var(--blue); }
+.bookos-tarjeta:focus-visible { outline: none; }
+.bookos-pie {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bookos-cerrar {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--card) url("iconos/x-mark.svg") center / 14px no-repeat;
+  -moz-context-properties: fill;
+  fill: var(--tx);
+  box-shadow: var(--sombra-flotante);
+  opacity: 0;
+  transition: opacity 120ms var(--curva);
+}
+.bookos-tarjeta:is(:hover, :focus-visible) .bookos-cerrar { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  #bookos-vista-pestanas, .bookos-rejilla { transition: none !important; }
+}
+
+/* ── Página de inicio ───────────────────────────────────────────────────── */
+#bookos-inicio {
+  display: none;
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--bg) center / cover no-repeat;
+  color: var(--tx);
+}
+:root[bookos-nueva]:not([bookos-vista]) #bookos-inicio { display: block; }
+/* Sobre una imagen el texto tiene que leerse sea cual sea: blanco con sombra,
+ * y un velo suave arriba y abajo donde van el reloj y los favoritos. */
+#bookos-inicio[con-imagen] {
+  color: #fff;
+  --sombra-texto: 0 1px 12px rgba(0,0,0,.45);
+}
+#bookos-inicio[con-imagen]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(0,0,0,.18), transparent 35%, transparent 65%, rgba(0,0,0,.18));
+  pointer-events: none;
+}
+
+/* Reloj y saludo, encima de la barra. Fijos y no absolutos: la barra se
+ * centra respecto a la ventana (top: 52% - 33px) y estos tienen que usar la
+ * misma referencia, no la de la capa, que empieza bajo las pestañas. */
+.bookos-reloj {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(48% + 33px + 28px);
+  text-align: center;
+  text-shadow: var(--sombra-texto, none);
+}
+#bookos-inicio[sin-reloj] .bookos-reloj { display: none; }
+.bookos-hora { font-size: 64px; font-weight: 700; letter-spacing: -1.5px; line-height: 1; }
+.bookos-saludo { margin-top: 8px; font-size: 17px; font-weight: 500; opacity: .85; }
+
+/* Favoritos, debajo de la barra. */
+.bookos-favoritos {
+  position: fixed;
+  inset-inline: 0;
+  top: calc(52% + 33px + 32px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  max-width: 720px;
+  margin-inline: auto;
+}
+#bookos-inicio:is([ocultar-favoritos], [sin-favoritos]) .bookos-favoritos { display: none; }
+.bookos-favorito {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 72px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bookos-favorito > :is(img, .bookos-inicial) {
+  box-sizing: border-box;
+  width: 56px;
+  height: 56px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--sombra-flotante);
+  transition: transform 120ms var(--curva);
+}
+.bookos-favorito:hover > :is(img, .bookos-inicial) { transform: scale(1.06); }
+.bookos-inicial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-container) !important;
+  color: var(--on-accent-container);
+  font-size: 24px;
+  font-weight: 700;
+}
+.bookos-favorito:focus-visible { outline: none; }
+.bookos-favorito:focus-visible > :is(img, .bookos-inicial) { outline: 2px solid var(--blue); outline-offset: 2px; }
+.bookos-favorito > span:not(.bookos-inicial) {
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: var(--sombra-texto, none);
+}
+
+/* Botón y panel de personalizar. */
+.bookos-personalizar {
+  position: absolute;
+  inset-inline-end: 24px;
+  bottom: 24px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--sombra-flotante);
+  cursor: pointer;
+  transition: background-color 120ms var(--curva);
+}
+.bookos-personalizar:hover { background: color-mix(in srgb, var(--card), var(--tx) 5%); }
+.bookos-personalizar:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.bookos-panel-inicio {
+  position: absolute;
+  inset-inline-end: 24px;
+  bottom: 72px;
+  width: 300px;
+  padding: 6px 12px 12px;
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--tx);
+  box-shadow: 0 6px 22px rgba(0,0,0,.18);
+  animation: bookos-aparece 180ms cubic-bezier(.32,1.3,.5,1);
+}
+@media (prefers-color-scheme: dark) {
+  .bookos-panel-inicio { box-shadow: 0 0 0 1px var(--brd); }
+}
+.bookos-panel-inicio[hidden] { display: none; }
+/* La barra de búsqueda va en la capa superior y montaba sobre el panel en
+ * ventanas estrechas: mientras se personaliza, se aparta. */
+:root[bookos-personalizando] #urlbar { visibility: hidden; }
+@keyframes bookos-aparece {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+}
+.bookos-seccion { padding: 12px 8px 6px; font-size: 12px; font-weight: 500; color: var(--tx2); }
+.bookos-tarjeta-ajustes { border-radius: 14px; background: var(--card); overflow: hidden; }
+.bookos-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.bookos-fila + .bookos-fila { box-shadow: inset 16px 0.5px 0 0 var(--card), inset 0 0.5px 0 0 var(--div); }
+.bookos-fila:hover { background: var(--hov); }
+.bookos-fila input[type=radio] { accent-color: var(--blue); width: 18px; height: 18px; margin: 0; }
+/* Interruptor de la HIG: pista 46×28, mando 22×22 con 3px de margen. */
+.bookos-interruptor {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 28px;
+  margin: 0;
+  border-radius: 14px;
+  background: var(--toff);
+  cursor: pointer;
+  transition: background-color 250ms cubic-bezier(.34,1.4,.64,1);
+}
+.bookos-interruptor::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: transform 250ms cubic-bezier(.34,1.4,.64,1);
+}
+.bookos-interruptor:checked { background: var(--blue); }
+.bookos-interruptor:checked::after { transform: translateX(18px); }
+.bookos-interruptor:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .bookos-panel-inicio { animation: none; }
+  .bookos-interruptor, .bookos-interruptor::after { transition: none; }
+}
+
+/* ── Gesto de deslizar para ir atrás/adelante ───────────────────────────── */
+/* El círculo que asoma por el borde al deslizar con dos dedos. Tarjeta con
+ * sombra mientras se arrastra; cuando el gesto ya basta para navegar
+ * (.will-navigate, al pasar del 25%) pasa al acento con un rebote, para que
+ * se note que al soltar irá a la otra página. */
+#historySwipeAnimationPreviousArrow,
+#historySwipeAnimationNextArrow {
+  --swipe-nav-icon-primary-color: var(--blue) !important;
+  --swipe-nav-icon-accent-color: var(--card) !important;
+}
+.swipe-nav-icon {
+  overflow: visible;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.2));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.swipe-nav-icon-circle {
+  stroke: var(--brd) !important;
+  stroke-width: 1px;
+  transition: fill 120ms var(--curva) !important;
+}
+.swipe-nav-icon-arrow {
+  fill: var(--tx) !important;
+  stroke: var(--tx);
+  stroke-width: 0.6px;
+  transition: fill 120ms var(--curva) !important;
+}
+.will-navigate > .swipe-nav-icon-arrow { fill: var(--on-accent, #fff) !important; stroke: var(--on-accent, #fff); }
+.swipe-nav-icon-circle-outline {
+  fill: transparent !important;
+  stroke: var(--blue) !important;
+  stroke-width: 2px;
+}
+.will-navigate > .swipe-nav-icon-circle-outline { opacity: .3 !important; }
+.swipe-nav-icon.will-navigate { animation: bookos-rebote 250ms cubic-bezier(.34,1.4,.64,1); }
+@keyframes bookos-rebote {
+  50% { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swipe-nav-icon.will-navigate { animation: none; }
+}

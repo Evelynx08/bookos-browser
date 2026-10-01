@@ -1,0 +1,13 @@
+*.log
+
+# Por si se monta el árbol de construir.sh dentro del repo en vez de en ~/.local
+/build/
+/out/
+
+# Editores y sistema
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+.claude/settings.local.json
