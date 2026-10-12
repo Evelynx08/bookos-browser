@@ -68,7 +68,7 @@ for f in about-logo about-logo-private; do
 done
 magick "$icono" -resize 192x192 "$marca/about.png"
 (cd "$tmp/omni" && zip -qr -X -D -0 "$DESTINO/browser/omni.ja" .)
-cp "$FIREFOX/firefox" "$DESTINO/firefox"
+cp "$FIREFOX/firefox" "$DESTINO/aether-browser"
 for f in "$FIREFOX"/defaults/pref/*; do ln -s "$f" "$DESTINO/defaults/pref/"; done
 
 cp "$ORIGEN/defaults/pref/autoconfig.js" "$DESTINO/defaults/pref/"

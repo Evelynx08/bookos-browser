@@ -29,10 +29,41 @@ export class BookosScrollChild extends JSWindowActorChild {
   // Solo se compensa el resize que provoca la propia barra al cambiar, no
   // uno del usuario agrandando la ventana.
   #compensar = false;
+  // Lo que se desplaza: el documento (null) o el contenedor de una web tipo
+  // aplicación. #ultimaY se mide sobre él y la compensación se le aplica a
+  // él; con win.scrollBy/scrollY a secas, en esas webs la compensación no
+  // movía nada y #ultimaY quedaba en 0, así que el siguiente scroll del
+  // contenedor parecía un salto hacia abajo y al subir la barra entraba y
+  // salía en bucle.
+  #objetivo = null;
+
+  #posicion() {
+    return this.#objetivo ? this.#objetivo.scrollTop : this.contentWindow.scrollY;
+  }
 
   handleEvent(ev) {
     const win = this.contentWindow;
     if (ev.type === "pageshow") {
+      // Se avisa siempre: el actor es nuevo en cada página y empieza en
+      // «visible», pero el <browser> conserva el estado de la anterior. Sin
+      // esto, tras bajar en una página la siguiente se abría arriba del todo
+      // con la barra oculta.
+      this.#estado = null;
+      // En las páginas internas (Ajustes, Complementos) la barra se queda:
+      // llevan la navegación y el buscador fijos a la ventana, no dentro de lo
+      // que se desplaza, y cada vez que la franja entraba o salía saltaban
+      // 58px (visto fotograma a fotograma en Ajustes). La compensación solo
+      // mueve lo que se desplaza.
+      if (win.location.protocol === "about:") {
+        this.#avisar("visible", false);
+        return;
+      }
+      // En Gemini el contenido se desplaza dentro de la aplicación: cambiar
+      // la altura disponible al ocultar la barra puede realimentar su scroll.
+      if (win.location.hostname === "gemini.google.com") {
+        this.#avisar("visible", false);
+        return;
+      }
       // En captura para ver también el scroll de contenedores, que no
       // burbujea (ver abajo).
       win.addEventListener("scroll", this, { passive: true, capture: true });
@@ -51,8 +82,8 @@ export class BookosScrollChild extends JSWindowActorChild {
       this.#alto = win.innerHeight;
       if (cambio && this.#compensar) {
         this.#compensar = false;
-        win.scrollBy({ top: -cambio, behavior: "instant" });
-        this.#ultimaY = win.scrollY;
+        (this.#objetivo ?? win).scrollBy({ top: -cambio, behavior: "instant" });
+        this.#ultimaY = this.#posicion();
         this.#acumulado = 0;
       }
       return;
@@ -64,7 +95,14 @@ export class BookosScrollChild extends JSWindowActorChild {
     const t = ev.target;
     const esDocumento = t === win.document;
     if (!esDocumento && !(t.clientHeight > win.innerHeight * 0.6)) return;
-    const y = esDocumento ? win.scrollY : t.scrollTop;
+    const objetivo = esDocumento ? null : t;
+    if (objetivo !== this.#objetivo) {
+      // Las posiciones de dos elementos distintos no se pueden restar.
+      this.#objetivo = objetivo;
+      this.#ultimaY = this.#posicion();
+      this.#acumulado = 0;
+    }
+    const y = this.#posicion();
     const delta = y - this.#ultimaY;
     this.#ultimaY = y;
     if (y <= ARRIBA) {

@@ -23,10 +23,10 @@ fi
 "$aqui/construir.sh" "$raiz"
 install -Dm755 "$aqui/bookos-browser" "$bin/bookos-browser"
 install -Dm644 "$aqui/data/bookos-browser.svg" "$share/icons/hicolor/scalable/apps/bookos-browser.svg"
-install -Dm644 "$aqui/data/aether-browser.png" "$share/icons/hicolor/512x512/apps/bookos-browser.png"
+rm -f "$share/icons/hicolor/512x512/apps/bookos-browser.png"
 # Ruta absoluta en Exec: el compositor no tiene por qué llevar ~/.local/bin en
 # su PATH.
-sed "s|^Exec=bookos-browser|Exec=$bin/bookos-browser|; s|^TryExec=bookos-browser|TryExec=$bin/bookos-browser|" \
+sed "s|^Exec=bookos-browser|Exec=$bin/bookos-browser|; s|^TryExec=bookos-browser|TryExec=$bin/bookos-browser|; s|^Icon=.*$|Icon=$share/icons/hicolor/scalable/apps/bookos-browser.svg|" \
   "$aqui/data/bookos-browser.desktop" > "$aqui/.desktop.tmp"
 install -Dm644 "$aqui/.desktop.tmp" "$share/applications/bookos-browser.desktop"
 rm "$aqui/.desktop.tmp"

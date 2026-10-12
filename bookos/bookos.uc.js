@@ -6,6 +6,11 @@
 (() => {
   const raiz = document.documentElement;
   const pestanas = document.getElementById("TabsToolbar");
+  // Textos propios en castellano e inglés (HIG §12). Sigue el idioma de la
+  // interfaz de Firefox, que es el del paquete de idioma, y no el del
+  // sistema: así nunca se mezcla con los menús de Firefox.
+  const ES = Services.locale.appLocaleAsBCP47.startsWith("es");
+  const t = (es, en) => (ES ? es : en);
 
   // ── Marca en los paquetes de idioma ───────────────────────────────────────
   // La marca en inglés va dentro de omni.ja (construir.sh), pero cada paquete
@@ -44,8 +49,8 @@
     // del sistema a la que llamar): este abre la de BookOS, #bookos-compartir-menu.
     CustomizableUI.createWidget({
       id: "bookos-compartir",
-      label: "Compartir",
-      tooltiptext: "Compartir esta página",
+      label: t("Compartir", "Share"),
+      tooltiptext: t("Compartir esta página", "Share this page"),
       defaultArea: CustomizableUI.AREA_NAVBAR,
       onCommand(ev) {
         const win = ev.target.ownerDocument.defaultView;
@@ -59,8 +64,8 @@
     // de la lista desplegable de Firefox.
     CustomizableUI.createWidget({
       id: "bookos-pestanas",
-      label: "Todas las pestañas",
-      tooltiptext: "Ver todas las pestañas",
+      label: t("Todas las pestañas", "All tabs"),
+      tooltiptext: t("Ver todas las pestañas", "Show all tabs"),
       defaultArea: CustomizableUI.AREA_TABSTRIP,
       onCommand(ev) {
         ev.target.ownerDocument.defaultView.bookosVistaPestanas();
@@ -112,15 +117,15 @@
   };
   const copiado = () =>
     ConfirmationHint.show(document.getElementById("bookos-compartir"), "confirmation-hint-link-copied");
-  opcion("Copiar enlace", () => {
+  opcion(t("Copiar enlace", "Copy link"), () => {
     gClipboard.write(gBrowser.currentURI.displaySpec);
     copiado();
   });
-  opcion("Copiar título y enlace", () => {
+  opcion(t("Copiar título y enlace", "Copy title and link"), () => {
     gClipboard.write(`${gBrowser.selectedTab.label}\n${gBrowser.currentURI.displaySpec}`);
     copiado();
   });
-  opcion("Enviar por correo", () => MailIntegration.sendLinkForBrowser(gBrowser.selectedBrowser));
+  opcion(t("Enviar por correo", "Email link"), () => MailIntegration.sendLinkForBrowser(gBrowser.selectedBrowser));
   // Book Share (Quick Share de BookOS) vive en Ajustes: se le pasa el enlace
   // y Ajustes abre su hoja de dispositivos cercanos. Con setsid para que
   // Ajustes no quede colgando como hijo del navegador si no estaba abierto.
@@ -129,7 +134,7 @@
   Subprocess.pathSearch("bookos-settings").then(
     () => {
       const item = document.createXULElement("menuitem");
-      item.setAttribute("label", "Enviar con Book Share");
+      item.setAttribute("label", t("Enviar con Book Share", "Send with Book Share"));
       item.addEventListener("command", () => {
         const url = gBrowser.currentURI.displaySpec;
         if (!/^https?:/.test(url)) return;
@@ -148,10 +153,19 @@
   // PanelUI ancla el menú siempre a #PanelUI-menu-button, así que en vez de
   // abrirlo desde otro botón se mueve el suyo. Va delante del área
   // personalizable de las pestañas y no dentro: CustomizableUI rehace esa
-  // área y no espera nodos ajenos en ella.
-  document
-    .getElementById("TabsToolbar-customization-target")
-    .before(document.getElementById("PanelUI-button"));
+  // área y no espera nodos ajenos en ella. Al cambiar entre pestañas
+  // horizontales y verticales, CustomizableUI lo devuelve a la barra de
+  // navegación (medido: ya está allí al volver de setBoolPref), así que se
+  // recoloca cada vez. En una microtarea: este observador se avisa antes que
+  // el de CustomizableUI y lo recolocaba para que acto seguido se lo llevara.
+  const menuArriba = () =>
+    document
+      .getElementById("TabsToolbar-customization-target")
+      .before(document.getElementById("PanelUI-button"));
+  menuArriba();
+  const alCambiarOrientacion = () => Promise.resolve().then(menuArriba);
+  Services.prefs.addObserver("sidebar.verticalTabs", alCambiarOrientacion);
+  window.addEventListener("unload", () => Services.prefs.removeObserver("sidebar.verticalTabs", alCambiarOrientacion));
   // Abre hacia la derecha: con la posición de fábrica (pegado al borde
   // derecho del botón) se salía de la ventana por la izquierda.
   document.getElementById("appMenu-popup").setAttribute("position", "bottomleft topleft");
@@ -165,7 +179,7 @@
   const enfoque = document.createXULElement("toolbarbutton");
   enfoque.id = "bookos-enfoque";
   enfoque.className = "toolbarbutton-1";
-  enfoque.setAttribute("tooltiptext", "Modo enfoque (F11)");
+  enfoque.setAttribute("tooltiptext", t("Modo enfoque (F11)", "Focus mode (F11)"));
   enfoque.addEventListener("command", () => (window.fullScreen = !window.fullScreen));
   acciones.append(enfoque, document.getElementById("unified-extensions-button"));
   pestanas.append(acciones);
@@ -186,7 +200,7 @@
   recargar.id = "bookos-recargar";
   recargar.className = "urlbar-page-action";
   recargar.setAttribute("role", "button");
-  recargar.setAttribute("tooltiptext", "Recargar (F5)");
+  recargar.setAttribute("tooltiptext", t("Recargar (F5)", "Reload (F5)"));
   const iconoRecargar = document.createXULElement("image");
   iconoRecargar.className = "urlbar-icon";
   recargar.append(iconoRecargar);
@@ -254,6 +268,7 @@
   function pintarVista() {
     const rejilla = vista.querySelector(".bookos-rejilla");
     rejilla.replaceChildren();
+    const tarjetas = new Map();
     for (const tab of gBrowser.visibleTabs) {
       const tarjeta = document.createElementNS(HTML, "button");
       tarjeta.className = "bookos-tarjeta";
@@ -271,13 +286,22 @@
       pie.textContent = tab.label;
       const cerrar = document.createElementNS(HTML, "span");
       cerrar.className = "bookos-cerrar";
-      cerrar.title = "Cerrar pestaña";
+      cerrar.title = t("Cerrar pestaña", "Close tab");
       cerrar.addEventListener("click", ev => {
         ev.stopPropagation();
         gBrowser.removeTab(tab, { animate: false });
-        if (!vista) return;
-        if (gBrowser.visibleTabs.length) pintarVista();
-        else cerrarVista();
+        // Si la página pide confirmación para salir, la pestaña sigue ahí.
+        if (!vista || !tab.closing) return;
+        if (!gBrowser.visibleTabs.length) {
+          cerrarVista();
+          return;
+        }
+        // Solo se quita su tarjeta: repintar la rejilla volvía a pedir la
+        // miniatura de todas las pestañas (medido: 80-90 ms con 7, y crece
+        // con cada una) y las tarjetas parpadeaban al favicon mientras.
+        tarjeta.remove();
+        tarjetas.delete(tab);
+        for (const [t, c] of tarjetas) c.toggleAttribute("seleccionada", t.selected);
       });
       tarjeta.append(marco, pie, cerrar);
       tarjeta.addEventListener("click", () => {
@@ -285,6 +309,7 @@
         cerrarVista();
       });
       rejilla.append(tarjeta);
+      tarjetas.set(tab, tarjeta);
     }
     rejilla.querySelector("[seleccionada]")?.focus();
   }
@@ -337,24 +362,24 @@
     { id: "bookos-inicio" },
     el("div", { class: "bookos-reloj" }, el("div", { class: "bookos-hora" }), el("div", { class: "bookos-saludo" })),
     el("div", { class: "bookos-favoritos" }),
-    el("button", { class: "bookos-personalizar" }, "Personalizar"),
+    el("button", { class: "bookos-personalizar" }, t("Personalizar", "Customize")),
     el(
       "div",
       { class: "bookos-panel-inicio", hidden: "" },
-      el("div", { class: "bookos-seccion" }, "Fondo"),
+      el("div", { class: "bookos-seccion" }, t("Fondo", "Background")),
       el(
         "div",
         { class: "bookos-tarjeta-ajustes" },
-        opcionFondo("color", "Color de la paleta"),
-        opcionFondo("escritorio", "Fondo del escritorio"),
-        opcionFondo("imagen", "Imagen propia…")
+        opcionFondo("color", t("Color de la paleta", "Palette color")),
+        opcionFondo("escritorio", t("Fondo del escritorio", "Desktop wallpaper")),
+        opcionFondo("imagen", t("Imagen propia…", "Custom image…"))
       ),
-      el("div", { class: "bookos-seccion" }, "Mostrar"),
+      el("div", { class: "bookos-seccion" }, t("Mostrar", "Show")),
       el(
         "div",
         { class: "bookos-tarjeta-ajustes" },
-        interruptor("bookos.inicio.reloj", "Reloj y saludo"),
-        interruptor("bookos.inicio.favoritos", "Favoritos")
+        interruptor("bookos.inicio.reloj", t("Reloj y saludo", "Clock and greeting")),
+        interruptor("bookos.inicio.favoritos", t("Favoritos", "Favorites"))
       )
     )
   );
@@ -394,8 +419,13 @@
     const ahora = new Date();
     inicio.querySelector(".bookos-hora").textContent = ahora.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     const h = ahora.getHours();
-    inicio.querySelector(".bookos-saludo").textContent =
-      h < 6 ? "Buenas noches" : h < 13 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches";
+    const saludo =
+      h < 6 ? t("Buenas noches", "Good night")
+      : h < 13 ? t("Buenos días", "Good morning")
+      : h < 21 ? t("Buenas tardes", "Good afternoon")
+      : t("Buenas noches", "Good evening");
+    const fecha = ahora.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    inicio.querySelector(".bookos-saludo").textContent = `${saludo} · ${fecha}`;
   }
 
   async function pintarFavoritos() {
@@ -493,7 +523,7 @@
     r.addEventListener("change", async () => {
       if (r.value === "imagen") {
         const fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-        fp.init(window.browsingContext, "Imagen de fondo", Ci.nsIFilePicker.modeOpen);
+        fp.init(window.browsingContext, t("Imagen de fondo", "Background image"), Ci.nsIFilePicker.modeOpen);
         fp.appendFilters(Ci.nsIFilePicker.filterImages);
         const resultado = await new Promise(resolve => fp.open(resolve));
         if (resultado !== Ci.nsIFilePicker.returnOK) {
@@ -528,14 +558,75 @@
   // Se reutiliza la barra de verdad (con su buscador, sugerencias y atajos)
   // en vez de una página propia con otro campo de búsqueda que tendría que
   // reimplementar todo eso desde un proceso de contenido sin privilegios.
-  const marcarNueva = () =>
-    raiz.toggleAttribute("bookos-nueva", isBlankPageURL(gBrowser.currentURI.spec));
+  // Un enlace abierto en otra pestaña se queda en about:blank, que
+  // isBlankPageURL cuenta como en blanco, hasta que responde el servidor: la
+  // página de inicio asomaba mientras cargaba. Con la pestaña ocupada no es
+  // una pestaña nueva, es una web que aún no ha llegado.
+  const marcarNueva = () => {
+    const url = gBrowser.currentURI.spec;
+    raiz.toggleAttribute(
+      "bookos-nueva",
+      isBlankPageURL(url) && !(url === "about:blank" && gBrowser.selectedTab.hasAttribute("busy"))
+    );
+  };
   gBrowser.addProgressListener({
     onLocationChange: marcarNueva,
     QueryInterface: ChromeUtils.generateQI(["nsIWebProgressListener", "nsISupportsWeakReference"]),
   });
   gBrowser.tabContainer.addEventListener("TabSelect", marcarNueva);
+  // «busy» llega después del cambio de pestaña y no trae onLocationChange.
+  gBrowser.tabContainer.addEventListener("TabAttrModified", ev => {
+    if (ev.target.selected && ev.detail.changed.includes("busy")) marcarNueva();
+  });
   marcarNueva();
+
+  // ── Dónde empieza el contenido ────────────────────────────────────────────
+  // La barra de navegación, la página de inicio y la vista de pestañas flotan
+  // sobre el contenido, no sobre la ventana: a un lado puede estar la barra
+  // lateral (Ctrl+B) o las pestañas verticales, con un ancho que el usuario
+  // arrastra. Se mide la caja del contenido en vez de la barra lateral porque
+  // así da igual a qué lado esté. Cambiar de lado no le cambia el tamaño (el
+  // ResizeObserver no se entera), y Firefox lo anima con un desplazamiento
+  // que falsea la medida: se mide otra vez cuando quita
+  // sidebar-ongoing-animations de la caja.
+  const cajaContenido = document.getElementById("tabbrowser-tabbox");
+  const medirContenido = () => {
+    if (cajaContenido.hasAttribute("sidebar-ongoing-animations")) return;
+    const { left, right } = cajaContenido.getBoundingClientRect();
+    raiz.style.setProperty("--bookos-contenido-izquierda", `${left}px`);
+    raiz.style.setProperty("--bookos-contenido-derecha", `${window.innerWidth - right}px`);
+  };
+  new ResizeObserver(medirContenido).observe(cajaContenido);
+  new MutationObserver(medirContenido).observe(cajaContenido, {
+    attributeFilter: ["sidebar-positionend", "sidebar-ongoing-animations"],
+  });
+
+  // El separador sobre las herramientas de la barra lateral es un <splitter>
+  // de XUL, con fondo ThreeDFace: un color del sistema que el tema GTK de
+  // BookOS deja en negro (una raya de 2px sobre el gris del marco). Vive en
+  // el shadow DOM de sidebar-main y no expone part, así que bookos.css no
+  // llega a él.
+  const hojaLateral = new CSSStyleSheet();
+  hojaLateral.replaceSync("#sidebar-tools-and-extensions-splitter { background-color: var(--div); }");
+  const lateral = document.querySelector("sidebar-main").shadowRoot;
+  lateral.adoptedStyleSheets = [...lateral.adoptedStyleSheets, hojaLateral];
+
+  // Al volver de pestañas verticales a horizontales, Firefox deja
+  // sidebar.visibility en «hide-on-close» (browser-sidebar.js normaliza así
+  // cualquier valor vertical) y la tira de iconos de la barra lateral se queda
+  // fija a la izquierda. En Firefox se esconde con #sidebar-button, que aquí
+  // no está (su sitio es el del menú principal), así que se fuerza
+  // «hide-launcher»: la barra lateral sigue abriéndose con Ctrl+B. También al
+  // arrancar, para los perfiles que ya pasaron por vertical.
+  const sinLanzador = () => {
+    if (!Services.prefs.getBoolPref("sidebar.verticalTabs") &&
+        Services.prefs.getStringPref("sidebar.visibility") === "hide-on-close") {
+      Services.prefs.setStringPref("sidebar.visibility", "hide-launcher");
+    }
+  };
+  Services.prefs.addObserver("sidebar.visibility", sinLanzador);
+  window.addEventListener("unload", () => Services.prefs.removeObserver("sidebar.visibility", sinLanzador));
+  sinLanzador();
 
   // ── Barra que se esconde al bajar ─────────────────────────────────────────
   // Al bajar se va y la web empieza bajo las pestañas; al subir, en
@@ -587,23 +678,48 @@
     Services.prefs.setStringPref(pref, nueva.spec);
   }
 
-  function pintarBarrasDeScroll() {
+  // Los tokens de la paleta tal como quedan en un esquema, claro u oscuro. Las
+  // páginas tienen su propio esquema (Ajustes › Apariencia del sitio web), que
+  // no tiene por qué ser el de la ventana: con solo los colores de la ventana,
+  // elegir «Claro» dejaba Ajustes en oscuro. Se cambia un instante el esquema
+  // de la ventana, se lee y se devuelve, todo en la misma tarea: no se llega
+  // a pintar y no salta ningún aviso de cambio de tema (medido: 0 eventos
+  // change en matchMedia).
+  const tokensEn = esquema => {
+    const bc = window.browsingContext;
+    const antes = bc.prefersColorSchemeOverride;
+    bc.prefersColorSchemeOverride = esquema;
     const estilo = getComputedStyle(raiz);
-    const t = nombre => estilo.getPropertyValue(`--${nombre}`).trim();
+    const valores = new Map(
+      ["bg", "card", "tx", "tx2", "brd", "blue", "hov", "act", "on-accent"].map(n => [
+        n,
+        estilo.getPropertyValue(`--${n}`).trim(),
+      ])
+    );
+    bc.prefersColorSchemeOverride = antes;
+    return nombre => valores.get(nombre);
+  };
+  // La regla en claro y, dentro de una consulta de esquema, en oscuro.
+  const porEsquema = css => `${css(tokensEn("light"))}
+    @media (prefers-color-scheme: dark) { ${css(tokensEn("dark"))} }`;
 
+  function pintarBarrasDeScroll() {
     // Barras de desplazamiento de todas las webs, en hoja de agente: una web
     // que ponga su propio scrollbar-color sigue mandando.
     registrarHoja(
       "bookos.hojaScroll",
       sss.AGENT_SHEET,
-      `:root { scrollbar-color: color-mix(in srgb, ${t("blue")} 55%, transparent) transparent; }`
+      porEsquema(t => `:root { scrollbar-color: color-mix(in srgb, ${t("blue")} 55%, transparent) transparent; }`)
     );
 
     // Ajustes y Extensiones de Firefox con el aspecto de BookOS. Hoja de
     // usuario con !important: las de la página son de autor y, sin él,
     // ganarían. Se ocultan el aviso de «gestionado por tu organización» (son
     // nuestras propias políticas, no una empresa), la promo de navegador
-    // predeterminado (defaultBrowser y defaultBrowserSync: sale en dos sitios),
+    // predeterminado (defaultBrowser, defaultBrowserHome y defaultBrowserSync:
+    // con el rediseño de Ajustes de Firefox 156 abre el panel Inicio y dejaba
+    // «Abrir ventanas y pestañas anteriores» debajo de un anuncio), la casilla
+    // de comprobar el predeterminado (siempre gris: DontCheckDefaultBrowser),
     // la cuenta de Firefox (desactivada por política: «accountDisabled»), la
     // copia de seguridad, los controles de IA, Firefox Labs, «Más de Mozilla»
     // y el enlace de soporte de Mozilla.
@@ -611,7 +727,7 @@
       "bookos.hojaAjustes",
       sss.USER_SHEET,
       `@-moz-document url-prefix("about:preferences"), url-prefix("about:settings"), url-prefix("about:addons") {
-        :root {
+        ${porEsquema(t => `:root {
           --background-color-canvas: ${t("bg")} !important;
           --background-color-box: ${t("card")} !important;
           --card-background-color: ${t("card")} !important;
@@ -635,9 +751,10 @@
           --link-color: ${t("blue")} !important;
           background-color: ${t("bg")} !important;
           color: ${t("tx")} !important;
-        }
+        }`)}
         #policies-container-content, setting-group[groupid="defaultBrowser"],
-        setting-group:is([groupid="backup"], [groupid="defaultBrowserSync"], [groupid="accountDisabled"]),
+        setting-group:is([groupid="backup"], [groupid="defaultBrowserHome"], [groupid="defaultBrowserSync"], [groupid="accountDisabled"]),
+        #setting-control-alwaysCheckDefault,
         #weavePrefsDeck, [data-srd-groupid="sync"],
         #category-ai-features, #category-experimental, #category-more-from-mozilla,
         #helpButton, #support-firefox {
@@ -647,11 +764,6 @@
     );
   }
   window.addEventListener("activate", aplicarPaleta);
-  // Las hojas globales llevan los colores ya calculados, así que no siguen
-  // solas al tema como el resto (que va por prefers-color-scheme): al pasar
-  // de claro a oscuro, Ajustes y las barras de las webs se quedaban con los
-  // colores del tema anterior hasta volver a la ventana.
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintarBarrasDeScroll);
   Services.prefs.addObserver("bookos.dynamicPalette", aplicarPaleta);
   window.addEventListener("unload", () => Services.prefs.removeObserver("bookos.dynamicPalette", aplicarPaleta));
   aplicarPaleta();
